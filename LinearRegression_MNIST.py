@@ -45,3 +45,24 @@ images_data = data.test.images[0:9]
 cls_true_data = data.test.cls[0:9]
 plot_images(images_data, cls_true_data)
         
+"Defn placeholder var that are mapped as input img to comp graph"
+"A tensor (multidim vec/matrix) with float data-type 32 bits"
+"None defn arbitrary rows with cols img_size_flat, thus each row holds img"
+x = tf.placeholder(tf.float32, [None, img_size_flat])
+"One-hot encoding for true class"
+y_true = tf.placeholder(tf.float32, [None, num_classes])
+"True number class"
+y_true_cls = tf.placeholder(tf.int64, [None])
+
+"Defn var optimization"
+"Weights defn linear func steepness, for small changes of that var, large effect on output"
+"Class prediction per pixel"
+weights = tf.Variable(tf.zeros([img_size_flat, num_classes]))
+"Biases defn pre-existing cond that affect output"
+"Possible test set is predisposed to guessing a small set of nums"
+biases = tf.Variable(tf.zeros([num_classes]))
+
+"Defn model which returns [num_images, num_classes] given x = [num_images, img_size_flat] and weights = [img_size_flat, num_classes] thus eliminated by matrix multiplication
+"Class predictions per each img"
+"ith row, jth col reps likelihood of jth class matching ith img"
+logits = tf.matmul(x, weights) + biases
