@@ -7,6 +7,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 
 "Convert to one-hot encoding to easily pick out number via index"
 data = input_data.read_data_sets("data/MNIST/", one_hot=True)
+
 print("Training Set: {} ".format(len(data.train.labels)))
 print("Test Set: {} ".format(len(data.test.labels)))
 print("Validation Set: {} ".format(len(data.validation.labels)))
@@ -25,7 +26,7 @@ num_classes = 10
 def plot_images(images, cls_true, cls_pred=None):
     assert len(images) == len(cls_true) == 9
     fig, axes = plt.subplots(3, 3)
-    fig.subplots_adjust(hspace=0.1, wspace=0.1)
+    fig.subplots_adjust(hspace=0.3, wspace=0.3)
     
     "Enumerate to track obj and index, flatten rows, cols to loop over all nine"
     for i, ax in enumerate(axes.flat):
@@ -92,7 +93,7 @@ correct_prediction = tf.equal(y_pred_cls, y_true_cls)
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 "Start TF"
-session = tf.session()
+session = tf.compat.v1.Session(config = tf.ConfigProto(log_device_placement=True))
 session.run(tf.initialize_all_variables())
 
 "Training Model"
@@ -114,6 +115,7 @@ feed_dict_test = {x: data.test.images,
 
 def print_accuracy():
     acc = session.run(accuracy, feed_dict=feed_dict_test)
+    
     print("Accuracy on test set: {0:.1%}".format(acc))
     
 def plot_example_errors():
