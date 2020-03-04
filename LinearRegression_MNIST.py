@@ -114,6 +114,7 @@ feed_dict_test = {x: data.test.images,
                   y_true_cls: data.test.cls}
 
 def print_accuracy():
+    "Evaluate tensor when session.run() called"
     acc = session.run(accuracy, feed_dict=feed_dict_test)
     
     print("Accuracy on test set: {0:.1%}".format(acc))
@@ -131,6 +132,40 @@ def plot_example_errors():
     plot_images(images=images[0:9],
                 cls_true=cls_true[0:9],
                 cls_pred=cls_pred[0:9])
+"Plot filters that reprsent weight distribution corresponding to each class"\
+"Red indicates pos rxn, blue neg rxn for input img that has filter over-layed"
+
+def plot_weights():
+    w = session.run(weights)
+    
+    w_min = np.min(w)
+    w_max = np.max(w)
+
+    fig, axes = plt.subplots(3, 4)
+    fig.subplots_adjust(hspace=0.3, wspace=0.3)
+    
+    for i, ax in enumerate(axes.flat):
+        if i<10:
+            "Note that w.shape == (img_size_flat, 10), rep weight per each pixel across all possible classes"
+            "Show entire weight dist, for ith class iterate through all"
+            image = w[:, i].reshape(img_shape)
+
+            # Set the label for the sub-plot.
+            ax.set_xlabel("Weights: {0}".format(i))
+
+            # Plot the image.
+            ax.imshow(image, vmin=w_min, vmax=w_max, cmap='seismic')
+
+        # Remove ticks from each sub-plot.
+        ax.set_xticks([])
+        ax.set_yticks([])
+        
+    # Ensure the plot is shown correctly with multiple plots
+    # in a single Notebook cell.
+    plt.show()
+   
+optimize(num_iterations=10000)
 print_accuracy()
 plot_example_errors()
-    
+plot_weights()
+ 
