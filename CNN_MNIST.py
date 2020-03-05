@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
+import time
+
 
 def plot_images(images, cls_true, cls_pred=None):
     assert len(images) == len(cls_true) == 9    
@@ -74,7 +76,8 @@ def new_fc_layer(input,
     if use_relu:
         layer = tf.nn.relu(layer)
     return layer
-    
+
+
 #Conv Layer 1
 filter_size1 = 5
 num_filters1 = 16
@@ -139,11 +142,69 @@ layer_fc1 = new_fc_layer(input=layer_flat,
                          num_inputs = num_features,
                          num_outputs = fc_size,
                          use_relu = True)
-layer_fc2 = new_fc_layer(input=layer_fc2, 
+layer_fc2 = new_fc_layer(input=layer_fc1, 
                          num_inputs = fc_size,
                          num_outputs = num_classes,
                          use_relu = False)
 y_pred = tf.nn.softmax(layer_fc2)
 y_pred_cls = tf.argmax(y_pred, axis = 1)
+
+#Check true against pred via cross-entropy cost func
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=layer_fc2, labels = y_true)
+cost = tf.reduce_mean(cross_entropy)
+
+#Set up optimizier by adding to comp graph, adv one for grad desc
+optimizer = tf.train.AdamOptimizer(learning_rate = 1e-4).minimize(cost)
+
+correct_prediction = tf.equal(y_pred_cls, y_true_cls)
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+#Setting up TF
+session = tf.compat.v1.Session()
+session.run(tf.global_variables_initializer())
+
+#Setting up train/test for model
+
+#Func for running optimizer on batch size by iterations; training model 
+def optimize(num_iterations):
+    global total_iterations
+    start_time = time.time()
+    for i in range(total_iterations, total_iterations + num_iterations):
+        #Batch of img and true labels
+        x_batch_img, y_batch_true_cls, _ = data.random_batch(batch_size = train_batch_size)
+        #Dict for placeholder var names
+        feed_dict_train = {x: x_batch_img, y_true: y_batch_true_cls}
+        session.run(optimizer, feed_dict = feed_dict_train)
+        if i % 100 == 0:
+            acc = session.run(accuracy, feed_dict = feed_dict_train)
+            print("Accuracy on training set: " + acc)
+    total_iterations += num_iterations
+    end_time = time.time()
+    time_diff = end_time - start_time
+    print("Time usage: " + time_diff)
+        
+#Func to show performance for testing model in batches
+def print_test_accuracy():
+    num_test = len(data.validation.labels) #img test set; data refers to MNIST set
+    cls_pred = np.zeros(shape = num_test, dtype = np.int) #filled in batches
+    i = 0 #starting ind batch = i, ending = j
+    while i < num_test:
+        j = min(i + test_batch_size, num_test) #check if near end or a batch
+        images = data.x_test[i:j, : ] #img b/w i & j
+        labels = data.y_test[i:j, : ]
+        feed_dict = {x:images, y_true:labels}
+        cls_pred[i:j] = session.run(y_pred_cls, feed_dict = feed_dict) #populate arr of pred for batch
+        i = j
+    cls_true = data.y_test_cls 
+    correct = (cls_true == cls_pred)
+    correct_sum = correct.sum() #false = 0, true = 1, count right pred
+    acc = float(correct_sum) / num_test
+    print("Accuracy on test set: " + acc)
+    
+train_batch_size = 64
+total_iterations = 0
+test_batch_size = 256
+
+print_test_accuracy()
 
 
