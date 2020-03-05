@@ -47,7 +47,7 @@ def new_conv_layer(input, #Prev layer
                        padding = 'SAME')
     layer += biases #Added to each channel 
     if use_pooling: #strides move 2 across x & y. defn 2x2 window in ksize
-        layer = tf.nn.maxpool(value = layer,
+        layer = tf.nn.max_pool(value = layer,
                               ksize = [1, 2, 2, 1],
                               strides = [1, 2, 2, 1],
                               padding = 'SAME')
@@ -77,11 +77,11 @@ def new_fc_layer(input,
     
 #Conv Layer 1
 filter_size1 = 5
-num_filters = 16
+num_filters1 = 16
 
 #Conv Layer 2; Take sliding sum by applying all one filter from each channel (16 available) 
 filter_size2 = 5 #Channels output by conv; each one has filter set of diff size in next conv; determines next amt channels
-num_filters = 36 #Repeated 36 times to cover all channels, which are depth of layer 
+num_filters2 = 36 #Repeated 36 times to cover all channels, which are depth of layer 
 
 
 #FC (defn neurons)
@@ -101,12 +101,49 @@ data.test.cls = np.argmax(data.test.labels, axis=1)
 img_size = 28
 img_size_flat = img_size * img_size
 img_shape = (img_size, img_size)
-num_channels = 1
+num_channels = 1 #one img start, one channel
 num_classes = 10
 
 #Plot first nine images and true classes
 inputImg = data.test.images[0:9]
 trueCls = data.test.cls[0:9]
 plot_images(inputImg, trueCls)
+
+#Input to CNN via placeholder var
+x = tf.placeholder(tf.float32, shape=[None, img_size_flat], name='x') #arbitrary num labels, each input to conv
+x_image = tf.reshape(x, [-1, img_size, img_size, num_channels]) #encode as 4-dim tensor for input 
+y_true = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_true') #each label vec of length num_classes (10)
+y_true_cls = tf.argmax(y_true, axis=1) #axis = 1 defns classes across cols and data across rows 
+
+#Create CNN layer 1
+layer_conv1, weights_conv1 = new_conv_layer(input = x_image, 
+                                            num_input_channels = num_channels,
+                                            filter_size = filter_size1,
+                                            num_filters = num_filters1,
+                                            use_pooling = True)
+print(layer_conv1) #Output of layer is shape: ?, 14, 14, 16 ~ unknown num img are 14x14, prod 16 channels
+
+#Create CNN layer 2
+layer_conv2, weights_conv2 = new_conv_layer(input = layer_conv1, 
+                                            num_input_channels = num_filters1,
+                                            filter_size = filter_size2,
+                                            num_filters = num_filters2,
+                                            use_pooling = True)
+print(layer_conv2)#Output of layer is shape: ?, 7, 7, 36 ~ unknown num img are 7x7, prod 36 channels
+
+#Flatten, pass into FCN, determine predicted class 
+layer_flat, num_features = flatten_layer(layer_conv2)
+print(layer_flat) #7x7 img, 36 var copies = 1764 features for FCN
+
+layer_fc1 = new_fc_layer(input=layer_flat,
+                         num_inputs = num_features,
+                         num_outputs = fc_size,
+                         use_relu = True)
+layer_fc2 = new_fc_layer(input=layer_fc2, 
+                         num_inputs = fc_size,
+                         num_outputs = num_classes,
+                         use_relu = False)
+y_pred = tf.nn.softmax(layer_fc2)
+y_pred_cls = tf.argmax(y_pred, axis = 1)
 
 
