@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 import time
+from datetime import timedelta
+from mnist import MNIST
 
 
 def plot_images(images, cls_true, cls_pred=None):
@@ -91,25 +93,22 @@ num_filters2 = 36 #Repeated 36 times to cover all channels, which are depth of l
 fc_size = 128
 
 #Data import and setup
-from tensorflow.examples.tutorials.mnist import input_data 
-data = input_data.read_data_sets('data/MNIST', one_hot=True)
+data = MNIST(data_dir="data/MNIST/")
 
-print("Training Set: {}".format(len(data.train.labels)))
-print("Test Set: {}".format(len(data.test.labels)))
-print("Validation Set: {}".format(len(data.validation.labels)))
-
-data.test.cls = np.argmax(data.test.labels, axis=1)
+print("Training Set: {}".format(data.num_train))
+print("Test Set: {}".format(data.num_val))
+print("Validation Set: {}".format(data.num_test))
 
 #Input data setup (one channel for greyscale)
-img_size = 28
-img_size_flat = img_size * img_size
-img_shape = (img_size, img_size)
-num_channels = 1 #one img start, one channel
-num_classes = 10
+img_size = data.img_size
+img_size_flat = data.img_size_flat
+img_shape = data.img_shape
+num_channels = data.num_channels #one img start, one channel
+num_classes = data.num_classes
 
 #Plot first nine images and true classes
-inputImg = data.test.images[0:9]
-trueCls = data.test.cls[0:9]
+inputImg = data.x_test[0:9]
+trueCls = data.y_test_cls[0:9]
 plot_images(inputImg, trueCls)
 
 #Input to CNN via placeholder var
@@ -164,6 +163,8 @@ session = tf.compat.v1.Session()
 session.run(tf.global_variables_initializer())
 
 #Setting up train/test for model
+train_batch_size = 64
+total_iterations = 0
 
 #Func for running optimizer on batch size by iterations; training model 
 def optimize(num_iterations):
@@ -177,21 +178,23 @@ def optimize(num_iterations):
         session.run(optimizer, feed_dict = feed_dict_train)
         if i % 100 == 0:
             acc = session.run(accuracy, feed_dict = feed_dict_train)
-            print("Accuracy on training set: " + acc)
+            msg = "Optimization Iteration: {0:>6}, Training Accuracy: {1:>6.1%}"
+            print(msg.format(i + 1, acc))
     total_iterations += num_iterations
     end_time = time.time()
     time_diff = end_time - start_time
-    print("Time usage: " + time_diff)
+    print("Time usage: " + str(timedelta(seconds=int(round(time_diff)))))
         
+test_batch_size = 256
 #Func to show performance for testing model in batches
 def print_test_accuracy():
-    num_test = len(data.validation.labels) #img test set; data refers to MNIST set
+    num_test = data.num_test #img test set; data refers to MNIST set
     cls_pred = np.zeros(shape = num_test, dtype = np.int) #filled in batches
     i = 0 #starting ind batch = i, ending = j
     while i < num_test:
         j = min(i + test_batch_size, num_test) #check if near end or a batch
-        images = data.x_test[i:j, : ] #img b/w i & j
-        labels = data.y_test[i:j, : ]
+        images = data.x_test[i:j, : ] #img b/w i & j, x_test, y_test custom defn as MNIST remove
+        labels = data.y_test[i:j, : ] #rep same as data.test.images & data.test.labels
         feed_dict = {x:images, y_true:labels}
         cls_pred[i:j] = session.run(y_pred_cls, feed_dict = feed_dict) #populate arr of pred for batch
         i = j
@@ -199,12 +202,10 @@ def print_test_accuracy():
     correct = (cls_true == cls_pred)
     correct_sum = correct.sum() #false = 0, true = 1, count right pred
     acc = float(correct_sum) / num_test
-    print("Accuracy on test set: " + acc)
+    msg = "Accuracy on Test-Set: {0:.1%} ({1} / {2})"
+    print(msg.format(acc, correct_sum, num_test))
     
-train_batch_size = 64
-total_iterations = 0
-test_batch_size = 256
-
+optimize(num_iterations = 10000)
 print_test_accuracy()
 
 
