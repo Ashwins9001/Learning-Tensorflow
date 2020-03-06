@@ -2,7 +2,9 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 import time
+from sklearn.metrics import confusion_matrix
 from datetime import timedelta
+import math
 from mnist import MNIST
 
 
@@ -145,8 +147,8 @@ layer_fc2 = new_fc_layer(input=layer_fc1,
                          num_inputs = fc_size,
                          num_outputs = num_classes,
                          use_relu = False)
-y_pred = tf.nn.softmax(layer_fc2)
-y_pred_cls = tf.argmax(y_pred, axis = 1)
+y_pred = tf.nn.softmax(layer_fc2) #linearize all nums to [0, 1]
+y_pred_cls = tf.argmax(y_pred, axis = 1) #index of largest element ~ predicted class
 
 #Check true against pred via cross-entropy cost func
 cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=layer_fc2, labels = y_true)
@@ -184,7 +186,37 @@ def optimize(num_iterations):
     end_time = time.time()
     time_diff = end_time - start_time
     print("Time usage: " + str(timedelta(seconds=int(round(time_diff)))))
-        
+       
+    
+#Confusion matrix shows differences between test and training data to show connections; helpful to compare models 
+#Rows rep predicted, cols rep known truth; true pos in left corner, true neg in right corner for a 4x4 matrix
+#true pos is data model correctly guessed  true, true neg is data model correctly guessed false
+#bot left & bot right are false neg & pos resp; false neg = truth is cat A, but algo pred cat B
+#false pos = truth is cat B, but algo pred cat A, more relevant in context of data; regardless are misclassifications
+#Diagonal of conf mat always correct predictions
+def plot_confusion_matrix(cls_pred):
+    # cls_pred arr pred class num for img 
+
+    # Get truth
+    cls_true = data.y_test_cls
+    
+    # Get the confusion matrix using sklearn.
+    cm = confusion_matrix(y_true=cls_true,
+                          y_pred=cls_pred)
+
+    # Print the confusion matrix
+    print(cm)
+
+    # Plot the confusion matrix
+    plt.matshow(cm)
+    plt.colorbar()
+    tick_marks = np.arange(num_classes)
+    plt.xticks(tick_marks, range(num_classes))
+    plt.yticks(tick_marks, range(num_classes))
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.show()    
+    
 test_batch_size = 256
 #Func to show performance for testing model in batches
 def print_test_accuracy():
@@ -204,8 +236,69 @@ def print_test_accuracy():
     acc = float(correct_sum) / num_test
     msg = "Accuracy on Test-Set: {0:.1%} ({1} / {2})"
     print(msg.format(acc, correct_sum, num_test))
+    print("Confusion Matrix:")
+    plot_confusion_matrix(cls_pred=cls_pred)
     
-optimize(num_iterations = 10000)
+optimize(num_iterations = 1000)
 print_test_accuracy()
 
+#Func plot weights 
+def plot_conv_weights(weights, input_channel = 0):
+    #assume weights are 4-dim tensors 
+    w = session.run(weights) #retrieve TF weights
+    w_min = np.min(w) #retrieve min/max for normalization by matplotlib to range 0 - 255 for display
+    w_max = np.max(w)
+    num_filters = w.shape[3] #given tensor, at index 3, num channels 
+    num_grids = math.ceil(math.sqrt(num_filters))
+    fig, axes = plt.subplots(num_grids, num_grids) #axes np arr of dim; must flatten to iterate (single list)
+    
+    for i, ax in enumerate(axes.flat):
+        if i < num_filters:
+            img = w[:, :, input_channel, i] #get all img, and iterate by channel
+            ax.imshow(img, vmin = w_min, vmax = w_max, interpolation = 'nearest', cmap = 'seismic')
+            
+        ax.set_xticks([])
+        ax.set_yticks([])
+    plt.show()
 
+#Func plot output conv layer
+def plot_conv_layer(layer, image):
+    feed_dict = {x: [image]} #feed-dict containing single img
+    values = session.run(layer, feed_dict = feed_dict) #find output after running
+    num_filters = values.shape[3] #filters used in layer
+    num_grids = math.ceil(math.sqrt(num_filters))
+    fig, axes = plt.subplots(num_grids, num_grids)
+    
+    #output img per each filter applied
+    for i, ax in enumerate(axes.flat):
+        if i < num_filters:
+            img = values[0, :, :, i] #ith channel
+            ax.imshow(img, interpolation = 'nearest', cmap = 'binary') #nearest interpolation does not insert addl pixels for diff in res b/w output and given img
+            #cmap is colour map, binary is all white to black
+        ax.set_xticks([])
+        ax.set_yticks([])
+    plt.show()
+
+#Func to plot input img
+def plot_single_img(image):
+    plt.imshow(image.reshape(img_shape), interpolation = 'nearest', cmap = 'binary')
+    plt.show()
+    
+#See output of conv layers and weights
+image1 = data.x_test[0]
+plot_single_img(image1)
+image2 = data.x_test[3]
+plot_single_img(image2)
+
+plot_conv_weights(weights = weights_conv1) #retrieved from conv layer 1 instantiation, red is pos weights, blue is neg weights 
+plot_conv_layer(layer = layer_conv1, image = image1) #colours weights result of sliding across that input img 
+plot_conv_weights(weights = weights_conv2, input_channel = 0) #there are 15 more input channels, realise each one prod 36 filters
+plot_conv_layer(layer = layer_conv2, image = image2) #for greater conv, model finds even more minute patterns, reaches point where numbers are identifiable by human eye
+
+
+
+session.close()
+    
+
+    
+    
