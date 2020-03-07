@@ -9,8 +9,9 @@ from tensorflow.python.keras.models import Model, Sequential
 from tensorflow.python.keras.layers import Dense, Flatten, Dropout
 from tensorflow.python.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.python.keras.optimizers import Adam, RMSprop
+from tensorflow.python.keras.applications.vgg16 import preprocess_input, decode_predictions
 import knifey
-from knifey import num_classes
+from sklearn.utils.class_weight import compute_class_weight
 
 
 #Func for joining dir to list of filenames 
@@ -77,7 +78,7 @@ def example_errors():
     
 #Func for loading img from disk
 def load_images(image_paths):
-    images = [plt.imread(path) for path in image_path]
+    images = [plt.imread(path) for path in image_paths]
     return np.asarray(images)
 
 #Func to plot acc & loss vals over training set, test set
@@ -132,7 +133,32 @@ generator_test = datagen_train.flow_from_directory(directory = test_dir, #instan
                                                     batch_size = batch_size,
                                                     shuffle = False)
 print(generator_test) #530 img belong to 3 classes
+steps_for_test = generator_test.n / batch_size
+image_paths_train = path_join(train_dir, generator_train.filenames)
+image_path_test = path_join(test_dir, generator_test.filenames)
+cls_train = generator_train.classes #class num for all img in set
+cls_test = generator_test.classes
+class_names = list(generator_train.class_indices.keys()) #labels assoc w class num, store in list
+num_classes = generator_train.num_classes
+images = load_images(image_paths = image_paths_train[0:9]) #load nine img
+cls_true = cls_train[0:9]
+plot_images(images = images, cls_true = cls_true, smooth = True)
 
+#Knifey dataset containts more img of spoons & forks than knives, model biased to id one class
+#Calc weights balance dataset, applied to each img grad to have influence on overall grad
+class_weight = compute_class_weight(class_weight = 'balanced', classes = np.unique(cls_train), y = cls_train) #apply np.unique() as to not repeat classes, apply to all train img
+print(class_weight) #[1.39, 1.15, 0.71] for [forkey, knify, spoony]
+print(class_names)
 
-
-
+#Helper func to load, resize img for VGG-16 compatibility and completing prediction
+def predict(image_path):
+    img = PIL.Image.open(image_path)
+    img_resized = img.resize(input_shape, PIL.Image.LANCZOS)
+    plt.imshow(img_resized)
+    plt.show()
+    img_arr = np.expand_dims(np.array(img_resized), axis = 0) #plot as np arr, expand dim w new axis
+    pred = model.predict(img_arr) #using VGG-16 outputs class breakdown out of 100% as per 1000 classes, all vals inside arr
+    pred_decoded = decode_predictions(pred)[0] #defn by keras, decode preds provides class name of highest match (first elem); multiple img can exist, thus index to zero, only one for now
+    for code, name, score in pred_decoded:
+        print("{0:>6.2%} : {1}".format(score, name))
+predict(image_path = 'data/parrot.jpg')
