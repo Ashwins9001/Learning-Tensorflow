@@ -16,6 +16,7 @@ from knifey import num_classes
 #Func for joining dir to list of filenames 
 def path_join(dirname, filenames):
     return [os.path.join(dirname, filename) for filename in filenames]
+
 #Func plot 9 img and write true & pred cls below each
 def plot_images(images, cls_true, cls_pred=None, smooth=True):
     assert len(images) == len(cls_true)
@@ -43,6 +44,7 @@ def plot_images(images, cls_true, cls_pred=None, smooth=True):
         ax.set_xticks([])
         ax.set_yticks([])
     plt.show()
+    
 #Func to print conf matrix
 def print_confusion_matrix(cls_pred): #input array of pred class num for all img
     cm = confusion_matrix(y_true = cls_test, y_pred = cls_pred) #defn true & pred cls
@@ -50,6 +52,7 @@ def print_confusion_matrix(cls_pred): #input array of pred class num for all img
     print(cm)
     for i, class_name in enumerate(class_names):
         print("({0}) {1}".format(i, class_name))
+        
 #Func to plot example errors
 def plot_example_errors(cls_pred):
     incorrect = (cls_pred != cls_test) #bool arr whether pred class incorrect
@@ -57,6 +60,7 @@ def plot_example_errors(cls_pred):
     cls_pred = cls_pred[incorrect] #pred & true incorrects
     cls_true = cls_test[incorrect] 
     plot_images(images = images, cls_true = cls_true[0:9], cls_pred = cls_pred[0:9]) #plot_images only loads 9
+    
 #Func to defn errors in examples
 def example_errors():
     #Three types Keras gen: fit_generator, evalulate_generator, predict_generator
@@ -70,10 +74,12 @@ def example_errors():
     cls_pred = np.argmax(y_pred, axis = 1) #select most prob cls & convert to int
     plot_example_errors(cls_pred)
     print_confusion_matrix(cls_pred)
+    
 #Func for loading img from disk
 def load_images(image_paths):
     images = [plt.imread(path) for path in image_path]
     return np.asarray(images)
+
 #Func to plot acc & loss vals over training set, test set
 def plot_training_history(history): 
     acc = history.history['categorical_accuracy'] #for training set
@@ -87,11 +93,46 @@ def plot_training_history(history):
     plt.title('Training and Test Accuracy')
     plt.legend()
     plt.show()
+    
 #Dl knifey dataset, takes img from frames of vids, copy files to directories
 #This dataset replace FCN of VGG-16, transfer model, pred whether knifey or forky or spoony
 knifey.data_dir = "data/knifey-spoony/"
 knifey.maybe_download_and_extract()
 knifey.copy_files()
-train_dir = knifey.train_dir
+train_dir = knifey.train_dir #load set amt img locally from another set for model to transfer & pred
 test_dir = knifey.test_dir
-model = keras.applications.vgg16.VGG16(include_top=True, weights='imagenet')
+
+#Set up VGG-16 full-model, if include_top = False include only conv layers, FCN excluded
+model = keras.applications.vgg16.VGG16(include_top=True, weights='imagenet') #require input tensor = 224 x 224 x 3
+input_shape = model.layers[0].output_shape[1:3] #verify, ret first layer (in) and check rem two params for size
+print(input_shape)
+datagen_train = ImageDataGenerator( #Create data generator for augmented set, defn img transform
+    rescale = 1./255,
+    rotation_range = 180,
+    width_shift_range = 0.1,
+    height_shift_range = 0.1,
+    shear_range = 0.1,
+    zoom_range = [0.9, 0.5],
+    horizontal_flip = True,
+    vertical_flip = True,
+    fill_mode = 'nearest')
+datagen_test = ImageDataGenerator(rescale = 1./255) #Don't want aug test img, need acc for pred, ensure scaled to range 0.0 - 1.0 as expected by VGG-16
+batch_size = 20 #load in batches to not overgo RAM
+if True:
+    save_to_dir = None
+else:
+    save_to_dir = 'augmented_images/'
+generator_train = datagen_train.flow_from_directory(directory = train_dir, #instantiate gen w img
+                                                    target_size = input_shape,
+                                                    batch_size = batch_size,
+                                                    shuffle = False)
+print(generator_train) #4170 img belong to 3 classes 
+generator_test = datagen_train.flow_from_directory(directory = test_dir, #instantiate gen w img
+                                                    target_size = input_shape,
+                                                    batch_size = batch_size,
+                                                    shuffle = False)
+print(generator_test) #530 img belong to 3 classes
+
+
+
+
