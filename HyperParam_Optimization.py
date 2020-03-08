@@ -44,40 +44,99 @@ data = MNIST(data_dir="data/MNIST/")
 print("Training Set: {}".format(data.num_train))
 print("Test Set: {}".format(data.num_val))
 print("Validation Set: {}".format(data.num_test))
+    
+validation_data = (data.x_val, data.y_val_cls) #test data for Gaussian Process
+
+#Helper func plot img
+def plot_images(images, cls_true, cls_pred=None):
+    assert len(images) == len(cls_true) == 9
+    fig, axes = plt.subplots(3, 3)
+    fig.subplots_adjust(hspace=0.3, wspace=0.3)
+    for i, ax in enumerate(axes.flat):
+        ax.imshow(images[i].reshape(data.img_shape), cmap='binary')
+        if cls_pred is None:
+            xlabel = "True: {0}".format(cls_true[i])
+        else:
+            xlabel = "True: {0}, Pred: {1}".format(cls_true[i], cls_pred[i])
+        ax.set_xlabel(xlabel)        
+        ax.set_xticks([])
+        ax.set_yticks([])   
+    plt.show()
+
+#Helper func plot misclassified img test set
+def plot_example_errors(cls_pred):
+    incorrect = (cls_pred != data.test.cls)
+    images = data.test.images[incorrect]
+    cls_pred = cls_pred[incorrect]
+    cls_true = data.test.cls[incorrect]
+    plot_images(images=images[0:9], cls_true=cls_true[0:9], cls_pred=cls_pred[0:9])
+
+#Set up img 
+images = data.x_train[0:9]
+cls_true = data.y_train_cls[0:9]
+plot_images(images = images, cls_true = cls_true)
 
 img_size = 28
 img_size_flat = img_size * img_size
 img_shape = (img_size, img_size)
+num_classes = 10
 img_shape_full = (img_size, img_size, 1)
-
-model = Sequential()
-
-model.add(InputLayer(input_shape=(img_size_flat,)))
-
-model.add(Reshape(img_shape_full))
-
-model.add(Conv2D(kernel_size=5, strides=1, filters=16, padding='same',
-                     activation='relu', name='layer_conv1'))
-model.add(MaxPooling2D(pool_size=2, strides=2))
-
-model.add(Conv2D(kernel_size=5, strides=1, filters=36, padding='same',
-                     activation='relu', name='layer_conv2'))
-model.add(MaxPooling2D(pool_size=2, strides=2))
-
-model.add(Flatten())
-
-for i in range(5):
-    name = 'layer_dense_{0}'.format(i+1)
-
-    model.add(Dense(1024,
-                    activation='relu',
-                        name=name))
-
-model.add(Dense(1024, activation='softmax'))
+#CNN creation based on hyper params
+def create_model(learning_rate, num_dense_layers, num_dense_nodes, activation):
+    model = Sequential()
+    model.add(InputLayer(input_shape=(img_size_flat,))) #input layer is tuple of img size and number of images (unlimited)
+    model.add(Reshape(img_shape_full)) #reshape for CNN
+    model.add(Conv2D(kernel_size=5, strides=1, filters=16, padding='same', activation = activation, name='layer_conv1')) #want to optimization passed in activ func
+    model.add(MaxPooling2D(pool_size=2, strides=2))
+    model.add(Conv2D(kernel_size=5, strides=1, filters=36, padding='same', activation = activation, name='layer_conv2'))
+    model.add(MaxPooling2D(pool_size=2, strides=2)) #Flatten CNN output for input to fully connected layer
+    model.add(Flatten())
+    for i in range(num_dense_layers): #Add dense layers 
+        name = 'layer_dense_{0}'.format(i+1)
+        model.add(Dense(num_dense_nodes, activation = activation, name = name))
+    model.add(Dense(num_classes, activation='softmax')) #Add final layer w/ output equal to classes
+    optimizer = Adam(lr = learning_rate)
+    model.compile(optimizer = optimizer, loss = 'categorical_crossentropy', metrics = ['accuracy'])
+    return model
     
-optimizer = Adam(lr=2)
+path_best_model = 'best_model.keras' #defn ideal hyper param model
+best_accuracy = 0.0
     
-model.compile(optimizer=optimizer,
-                  loss='categorical_crossentropy',
-                  metrics=['accuracy'])
+#Defn func to create & train NN, eval perf on test set, then return fitness/objective val, neg classification accuracy on test set, neg as minimized
+#Skopt uses decorate with params to exec func fitness directly w list-input as defn earlier, skopt converts list to required params for func to use
+#Gaussian Model gets modified and updated via decorator 
+#Determining fitness val as input to Bayesian optimization 
+@use_named_args(dimensions = dimensions)
+def fitness(learning_rate, num_dense_layers, num_dense_nodes, activation):
+    print('learning rate: {0:.1e}'.format(learning_rate))
+    print('num_dense_layers:', num_dense_layers)
+    print('num_dense_nodes:', num_dense_nodes)
+    print('activation:', activation)
+    print()
     
+    model = create_model(learning_rate = learning_rate, num_dense_layers = num_dense_layers, num_dense_nodes = num_dense_nodes, activation = activation) #create NN
+    log_dir = log_dir_name(learning_rate, num_dense_layers, num_dense_nodes, activation)
+    #callback func are set func appl at training steps, used to get internal view of var states & statistics
+    callback_log = TensorBoard(log_dir = log_dir, histogram_freq = 0, batch_size = 32, write_graph = True, write_grads = False, write_images = False) #won't compute histograms for data, set to zero
+    #train model
+    history = model.fit(x = data.x_train, y = data.y_train_cls, epochs = 3, batch_size = 128, validation_data = validation_data, callbacks = [callback_log])
+    accuracy = history.history['val_acc'][-1]
+    print()
+    print("Accuracy: {0:.2%}".format(accuracy))
+    global best_accuracy #global allows modification to var outside of scope 
+    if accuracy > best_accuracy:
+        model.save(path_best_model)
+        best_accuracy = accuracy 
+    del model
+    K.clear_session()
+    return -accuracy
+
+#Run hyper param optimization
+fitness(x = default_params) #acq func defn how to find new hyper params from internal model Bayesian optimizer, n_calls is num of iterations
+search_result = gp_minimize(func = fitness, dimensions = dimensions, acq_func = 'EI', n_calls = 40, x0 = default_params)
+
+#Load and test on data
+model = load_model(path_best_model)
+result = model.evaluate(x = data.x_test, y = data.y_test_cls)
+images = data.x_test[0:9]
+y_pred = model.predict(x = images)
