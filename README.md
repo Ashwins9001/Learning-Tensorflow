@@ -1,3 +1,3 @@
 # Learning-Tensorflow
 # For Transfer Learning (Knifey into VGG16)
-Activate Transfer Learning venv from Conda, launch Spyder then edit files
+Currently does not work due to mismatching versions, cannot reference imported VGG16 and add it to existing Keras model
