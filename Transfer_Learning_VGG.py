@@ -6,6 +6,8 @@ from sklearn.metrics import confusion_matrix
 import PIL
 import keras
 from tensorflow.python.keras.models import Model, Sequential
+from tensorflow.keras.layers import Dense, Flatten, Dropout
+from tensorflow.python.keras.applications import VGG16
 from tensorflow.python.keras.layers import Dense, Flatten, Dropout
 from tensorflow.python.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.python.keras.optimizers import Adam, RMSprop
@@ -105,6 +107,7 @@ test_dir = knifey.test_dir
 
 #Set up VGG-16 full-model, if include_top = False include only conv layers, FCN excluded
 model = keras.applications.vgg16.VGG16(include_top=True, weights='imagenet') #require input tensor = 224 x 224 x 3
+
 input_shape = model.layers[0].output_shape[1:3] #verify, ret first layer (in) and check rem two params for size
 print(input_shape)
 datagen_train = ImageDataGenerator( #Create data generator for augmented set, defn img transform
@@ -135,7 +138,7 @@ generator_test = datagen_train.flow_from_directory(directory = test_dir, #instan
 print(generator_test) #530 img belong to 3 classes
 steps_for_test = generator_test.n / batch_size
 image_paths_train = path_join(train_dir, generator_train.filenames)
-image_path_test = path_join(test_dir, generator_test.filenames)
+image_paths_test = path_join(test_dir, generator_test.filenames)
 cls_train = generator_train.classes #class num for all img in set
 cls_test = generator_test.classes
 class_names = list(generator_train.class_indices.keys()) #labels assoc w class num, store in list
@@ -162,3 +165,26 @@ def predict(image_path):
     for code, name, score in pred_decoded:
         print("{0:>6.2%} : {1}".format(score, name))
 predict(image_path = 'data/parrot.jpg')
+predict(image_path = image_paths_train[0])
+predict(image_path = image_paths_train[1])
+predict(image_path = image_paths_test[0])
+model.summary() #check struc of VGG16 NN to get ref to last conv layer by name
+#shape matches that of block5_pool: (7, 7, 512)
+
+conv_model = keras.applications.vgg16.VGG16(include_top=False, weights='imagenet') #require input tensor = 224 x 224 x 3
+
+
+fc = Dense(1024, activation = 'relu')(conv_model)
+dropout = Dropout(0.5)(fc)
+fc2 = Dense(num_classes, activation = 'softmax')(dropout)
+new_model = Model(inputs = conv_model.input, outputs = fc2)
+#conv_model.add(Flatten())
+#conv_model.add(Dense(1024, activation = 'relu'))
+optimizer = Adam(lr = 1e-5)
+loss = 'categorical_crossentropy' #outputs probability over C classes, used for multi-class classification
+metrics = ['categorical_accuracy']
+
+def print_layer_trainable():
+    for layer in conv_model.layers: #checking struc of conv layers in model
+        print("{0}:\t{1}".format(layer.trainable, layer.name)) #check if layer is trainable or has been frozen (weights cannot be updated)
+print_layer_trainable()
