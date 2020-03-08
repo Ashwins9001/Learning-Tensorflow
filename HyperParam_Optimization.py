@@ -17,6 +17,33 @@ from skopt.plots import plot_convergence
 from skopt.plots import plot_objective, plot_evaluations
 from skopt.plots import plot_histogram, plot_objective_2D
 from skopt.utils import use_named_args
+from mnist import MNIST #Imported via script x = img, y = labels (true or pred) ~train on training set, test on testing set, then check y_pred for 1 hot vec, y_pred_cls for label name 
+
+
+#Constructing model of search space for params, process called Bayesian Optimization. Model is Gaussian Process
+#Gaussian Process estimates how perf varies w hyper-params, req Bayesian optimizer to provide params for search space haven't explored, or one that may inc perf
+#Repeat process multiple times, updating Gaussian until ideal set found 
+
+
+#Define range to eval hyper-params over, for learning_rate: 1e-6 to 1e-2, yet too large, therefore can search for k in 1ek to red lower/upper bound
+dim_learning_rate = Real(low = 1e-6, high = 1e-2, prior = 'log-uniform', name = 'learning_rate') #Sample params by log scale
+dim_num_dense_layers = Integer(low = 1, high = 5, name = 'num_dense_layers') #atleast 1 and at most 5 dense layer
+dim_num_dense_nodes = Integer(low = 5, high = 512, name = 'num_dense_nodes')
+dim_activation = Categorical(categories = ['relu', 'sigmoid'], name = 'activation')
+dimensions = [dim_learning_rate, dim_num_dense_layers, dim_num_dense_nodes, dim_activation]
+default_params = [1e-5, 1, 16, 'relu']
+
+#Create parent dir to log/view res param comb, each one stored in subdir
+def log_dir_name(learning_rate, num_dense_layers, num_dense_nodes, activation): #Tensorboard provides data visualization
+    s = "./19_logs/lr_{0:.0e}_layers_{1}_nodes_{2}_{3}/"
+    log_dir = s.format(learning_rate, num_dense_layers, num_dense_nodes, activation)
+    return log_dir
+
+#Data setup, input_data comes from import 
+data = MNIST(data_dir="data/MNIST/")
+print("Training Set: {}".format(data.num_train))
+print("Test Set: {}".format(data.num_val))
+print("Validation Set: {}".format(data.num_test))
 
 img_size = 28
 img_size_flat = img_size * img_size
@@ -54,4 +81,3 @@ model.compile(optimizer=optimizer,
                   loss='categorical_crossentropy',
                   metrics=['accuracy'])
     
-print("works")
