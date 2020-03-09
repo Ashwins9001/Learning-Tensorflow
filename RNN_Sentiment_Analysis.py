@@ -115,5 +115,32 @@ tokens = tokenizer.texts_to_sequences(texts)
 tokens_pad = pad_sequences(tokens, maxlen = max_tokens, padding = pad, truncating = pad) #shape will be (8, 537), each text seq w upto 537 tokens for its encoded words
 print(model.predict(tokens_pad))
 
+#Model can't work directly on integer tokens as they range from 0 to set lim pop words: 10000
+#Require conversion to values b/w -1.0 and 1.0 as NN input; embedding where each row is vector mapping for some token
+#Embeddings learned along w model as weights trained, ideally learns mapping where words w similar meaning have similar embedded vals
+#Verify if that occurs for func to find sorted words
+layer_embedding = model.get_layer('layer_embedding')
+weights_embedding = layer_embedding.get_weights()[0] #weights used for mapping in embedded layer, weights is matrix of num words in vocab (10000) multiplied by vec length of embedding ~ lookup table; vec length = 8, therefore shape: (10000, 8)
+token_good = tokenizer.word_index['good']
+token_great = tokenizer.word_index['great'] #receive tokens, convert to layer embedding and compare similarity by seeing weight distrib across vec
+print(weights_embedding[token_good])
+print(weights_embedding[token_great])
 
-
+#Sorting words according to embedded-space similarity; can use either cosine distance 
+def print_sorted_words(word, metric = 'cosine'):
+    #Sort by embedding distance 
+    token = tokenizer.word_index[word]
+    embedding = weights_embedding[token]
+    distances = cdist(weights_embedding, [embedding], metric = metric).T[0] #check similarity across all other words
+    print(distances)
+    sorted_index = np.argsort(distances) #sort embeddings to find similar words, returns tokens
+    sorted_distances = distances[sorted_index] #get distances at each token
+    sorted_words = [inverse_map[token] for token in sorted_index if token != 0] #take each token of sorted list & find word
+    def _print_words(words, distances):
+        for word, distance in zip(words, distances):
+            print("{0:.3f} - {1}".format(distance, word))
+    k = 10 #num words to print
+    print("Distance from '{0}':".format(word))
+    _print_words(sorted_words[0:k], sorted_distances[0:k])
+    
+print_sorted_words('great', metric='cosine')
