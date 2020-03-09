@@ -81,13 +81,39 @@ model.compile(loss = 'binary_crossentropy', optimizer = optimizer, metrics = ['a
 model.summary()
 y_train = np.array(y_train) #x_train_pad np arr, ensure both match 
 y_test = np.array(y_test)
-model.fit(x_train_pad, y_train, validation_split = 0.05, epochs = 3, batch_size = 64)
+model.fit(x_train_pad, y_train, validation_split = 0.05, epochs = 3, batch_size = 128)
 result = model.evaluate(x_test_pad, y_test)
 print("Accuracy: {0:.2%}".format(result[1]))
 
 #Show misclassified text
-#y_pred = model.predict(x = x_test_pad[0:1000]) #first 1000 preds
-#y_pred = y_pred.T[0] #transpose first elem, set of pred nums for all seq of first text
-#cls_pred = np.array([1.0 if p > 0.5 else 0.0 for p in y_pred]) #ensure pred can be classified as either 1.0 or 0.0
-#cls_true = np.array(y_test[0:1000])
+y_pred = model.predict(x = x_test_pad[0:1000]) #first 1000 preds
+y_pred = y_pred.T[0] #transpose first elem, y_pred list of n rows, combine all into n cols 
+cls_pred = np.array([1.0 if p > 0.5 else 0.0 for p in y_pred]) #ensure pred can be classified as either 1.0 or 0.0
+cls_true = np.array(y_test[0:1000]) #collect true vals
+incorrect = np.where(cls_pred != cls_true)
+incorrect = incorrect[0]
+print(len(incorrect))
+idx = incorrect[0]
+print(idx) #print ind of first incorrectly classified text seq
+text = x_test_text[idx] #print seq 
+print(text)
+print(y_pred[idx])
+print(cls_true[idx])
+
+#Testing with new data
+text1 = "This movie is fantastic! I really like it because it is so good!"
+text2 = "Good movie!"
+text3 = "Maybe I like this movie."
+text4 = "Meh ..."
+text5 = "If I were a drunk teenager then this movie might be good."
+text6 = "Bad movie!"
+text7 = "Not a good movie!"
+text8 = "This movie really sucks! Can I get my money back please?"
+texts = [text1, text2, text3, text4, text5, text6, text7, text8]
+
+tokens = tokenizer.texts_to_sequences(texts)
+tokens_pad = pad_sequences(tokens, maxlen = max_tokens, padding = pad, truncating = pad) #shape will be (8, 537), each text seq w upto 537 tokens for its encoded words
+print(model.predict(tokens_pad))
+
+
 
