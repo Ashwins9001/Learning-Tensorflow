@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 from scipy.spatial.distance import cdist
-from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import Dense, GRU, Embedding
-from tensorflow.python.keras.optimizers import Adam
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, GRU, Embedding
+from tensorflow.keras.optimizers import Adam
 from tensorflow.python.keras.preprocessing.text import Tokenizer
 from tensorflow.python.keras.preprocessing.sequence import pad_sequences
 import imdb
@@ -17,7 +17,7 @@ print("Train-set size: ", len(x_train_text)) #each item is a passage
 print("Test-set size:  ", len(x_test_text))
 data_text = x_train_text + x_test_text
 print(x_train_text[1])
-print(y_train[1])
+print(y_train)
 
 #Tokenizer: used to convert words in text strings to nums for NN proc
 #Instruct it to take x most popular words, it removes grammar & punc to form list ~ fitting to set
@@ -79,3 +79,15 @@ model.add(Dense(1, activation = 'sigmoid')) #Add dense layer for val b/w 0.0 - 1
 optimizer = Adam(lr = 1e-3)
 model.compile(loss = 'binary_crossentropy', optimizer = optimizer, metrics = ['accuracy']) #bin cross entropy sets up bin classification prob for each input 
 model.summary()
+y_train = np.array(y_train) #x_train_pad np arr, ensure both match 
+y_test = np.array(y_test)
+model.fit(x_train_pad, y_train, validation_split = 0.05, epochs = 3, batch_size = 64)
+result = model.evaluate(x_test_pad, y_test)
+print("Accuracy: {0:.2%}".format(result[1]))
+
+#Show misclassified text
+#y_pred = model.predict(x = x_test_pad[0:1000]) #first 1000 preds
+#y_pred = y_pred.T[0] #transpose first elem, set of pred nums for all seq of first text
+#cls_pred = np.array([1.0 if p > 0.5 else 0.0 for p in y_pred]) #ensure pred can be classified as either 1.0 or 0.0
+#cls_true = np.array(y_test[0:1000])
+
